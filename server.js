@@ -5,6 +5,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { parseCasText, buildSummary } = require('./parser');
+const { isCdslCas, buildCdslSummary } = require('./cdsl-parser');
+const { isCamsClassicCas, buildCamsClassicSummary } = require('./cams-classic-parser');
 
 const app = express();
 const upload = multer({
@@ -45,15 +47,30 @@ app.post('/api/analyze', upload.single('casFile'), (req, res) => {
     // Step 2: extract text
     const rawText = execFileSync('pdftotext', ['-layout', decryptedPath, '-']).toString();
 
-    // Step 3: parse + summarize
-    const holdings = parseCasText(rawText);
-    cleanup(); // delete both files immediately, before responding
-
-    if (holdings.length === 0) {
-      return res.status(422).json({ error: 'We could not read holdings from this file. It may be in a format we do not yet support.' });
+    // Step 3: parse + summarize (detect which CAS format this is)
+    let summary;
+    if (isCdslCas(rawText)) {
+      summary = buildCdslSummary(rawText);
+      cleanup();
+      if (summary.schemeCount === 0 && summary.allocation.length === 0) {
+        return res.status(422).json({ error: 'We could not read holdings from this file. It may be in a format we do not yet support.' });
+      }
+    } else if (isCamsClassicCas(rawText)) {
+      summary = buildCamsClassicSummary(rawText);
+      cleanup();
+      if (summary.schemeCount === 0 && summary.allocation.length === 0) {
+        return res.status(422).json({ error: 'We could not read holdings from this file. It may be in a format we do not yet support.' });
+      }
+    } else {
+      const holdings = parseCasText(rawText);
+      cleanup();
+      if (holdings.length === 0) {
+        return res.status(422).json({ error: 'We could not read holdings from this file. It may be in a format we do not yet support.' });
+      }
+      summary = buildSummary(holdings);
+      summary.format = 'cams';
     }
 
-    const summary = buildSummary(holdings);
     return res.json(summary);
 
   } catch (err) {
