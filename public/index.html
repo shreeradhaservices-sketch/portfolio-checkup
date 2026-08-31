@@ -90,7 +90,7 @@ form.addEventListener('submit', async function(e) {
 });
 
 function renderResults(data) {
-  document.getElementById('totalValue').textContent = '₹' + data.totalValue.toLocaleString('en-IN');
+  document.getElementById('totalValue').textContent = data.totalValue ? '₹' + data.totalValue.toLocaleString('en-IN') : 'Not found';
   document.getElementById('schemeCount').textContent = data.schemeCount;
   document.getElementById('amcCount').textContent = data.amcCount;
 
@@ -100,20 +100,30 @@ function renderResults(data) {
     type: 'doughnut',
     data: {
       labels: data.allocation.map(a => a.category[0].toUpperCase() + a.category.slice(1) + ' (' + a.percent + '%)'),
-      datasets: [{ data: data.allocation.map(a => a.value), backgroundColor: ['#16324f','#128c7e','#f5b300','#b00020','#888'] }]
+      datasets: [{ data: data.allocation.map(a => a.value), backgroundColor: ['#16324f','#128c7e','#f5b300','#b00020','#7b5ea7','#888'] }]
     }
   });
 
   const notesDiv = document.getElementById('concentrationNotes');
   notesDiv.innerHTML = '';
-  data.concentrationNotes.forEach(n => {
+
+  // CAMS-style: same-category concentration notes
+  (data.concentrationNotes || []).forEach(n => {
     const div = document.createElement('div');
     div.className = 'note';
     div.textContent = 'You hold ' + n.count + ' schemes in the ' + n.category + ' category: ' + n.schemes.join(', ') + '.';
     notesDiv.appendChild(div);
   });
 
-  const waText = encodeURIComponent('Hi, I just ran a Portfolio Checkup on your site. I hold ' + data.schemeCount + ' schemes worth approx ₹' + data.totalValue.toLocaleString('en-IN') + '. I would like to review this with someone.');
+  // CDSL-style: exact duplicate scheme held across separate folios
+  (data.duplicateSchemes || []).forEach(d => {
+    const div = document.createElement('div');
+    div.className = 'note';
+    div.textContent = 'You hold the same scheme across ' + d.count + ' separate folios: ' + d.scheme + '.';
+    notesDiv.appendChild(div);
+  });
+
+  const waText = encodeURIComponent('Hi, I just ran a Portfolio Checkup on your site. I hold ' + data.schemeCount + ' schemes' + (data.totalValue ? ' worth approx ₹' + data.totalValue.toLocaleString('en-IN') : '') + '. I would like to review this with someone.');
   document.getElementById('waLink').href = 'https://wa.me/919879113255?text=' + waText;
 
   document.getElementById('results').style.display = 'block';
