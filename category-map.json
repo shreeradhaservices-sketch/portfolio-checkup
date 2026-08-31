@@ -1,0 +1,6 @@
+{
+  "equity": ["flexi cap", "flexicap", "large cap", "largecap", "midcap", "mid cap", "smallcap", "small cap", "bluechip", "blue chip", "multicap", "multi cap", "focused fund", "value fund", "elss", "tax saver", "top 100", "top 200", "equity fund", "opportunities fund", "growth fund", "dividend yield"],
+  "debt": ["debt fund", "short term", "long term bond", "gilt fund", "liquid fund", "corporate bond", "banking and psu", "credit risk", "money market", "ultra short", "low duration", "dynamic bond", "income fund"],
+  "gold": ["gold fund", "gold savings", "gold etf", "gold and silver"],
+  "hybrid": ["hybrid fund", "balanced advantage", "balanced fund", "equity savings", "arbitrage fund", "multi asset"]
+}
