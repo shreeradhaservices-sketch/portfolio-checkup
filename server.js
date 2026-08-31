@@ -63,5 +63,29 @@ app.post('/api/analyze', upload.single('casFile'), (req, res) => {
   }
 });
 
+// TEMPORARY debug route — helps us see the real statement's text layout
+// so the parser can be tuned to match it. Automatically masks every digit
+// so no real amounts, folio numbers, or PAN details ever leave your screen.
+app.post('/api/debug-extract', upload.single('casFile'), (req, res) => {
+  const uploadedPath = req.file ? req.file.path : null;
+  const decryptedPath = uploadedPath ? uploadedPath + '_dec.pdf' : null;
+  const cleanup = () => {
+    try { if (uploadedPath && fs.existsSync(uploadedPath)) fs.unlinkSync(uploadedPath); } catch (e) {}
+    try { if (decryptedPath && fs.existsSync(decryptedPath)) fs.unlinkSync(decryptedPath); } catch (e) {}
+  };
+  try {
+    const password = (req.body.password || '').trim();
+    execFileSync('qpdf', ['--password=' + password, '--decrypt', uploadedPath, decryptedPath]);
+    const rawText = execFileSync('pdftotext', ['-layout', decryptedPath, '-']).toString();
+    cleanup();
+    // Mask every digit so no real numbers (values, PAN, folio, mobile) are ever shown.
+    const masked = rawText.replace(/\d/g, '#');
+    res.type('text/plain').send(masked);
+  } catch (e) {
+    cleanup();
+    res.status(400).send('Could not open file. Check the password.');
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log('Portfolio X-Ray running on port ' + PORT));
