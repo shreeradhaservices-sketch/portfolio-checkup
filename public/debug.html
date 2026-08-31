@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Debug - Portfolio Checkup</title>
+<style>
+body { font-family: Arial; max-width: 700px; margin: 40px auto; padding: 0 20px; }
+textarea { width: 100%; height: 400px; font-family: monospace; font-size: 12px; margin-top: 16px; }
+input, button { padding: 10px; margin: 6px 0; }
+</style>
+</head>
+<body>
+<h2>Debug: View Extracted Text (Numbers Masked)</h2>
+<p>This shows the raw text read from your statement, with every digit automatically replaced by <code>#</code>. Safe to copy and share — no real numbers are shown.</p>
+<form id="f">
+  <input type="file" id="file" accept="application/pdf" required><br>
+  <input type="password" id="pw" placeholder="Password (PAN)" required><br>
+  <button type="submit">Extract text</button>
+</form>
+<textarea id="out" placeholder="Extracted text will appear here..." readonly></textarea>
+<script>
+document.getElementById('f').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const fd = new FormData();
+  fd.append('casFile', document.getElementById('file').files[0]);
+  fd.append('password', document.getElementById('pw').value);
+  document.getElementById('out').value = 'Loading...';
+  const res = await fetch('/api/debug-extract', { method: 'POST', body: fd });
+  document.getElementById('out').value = await res.text();
+});
+</script>
+</body>
+</html>
