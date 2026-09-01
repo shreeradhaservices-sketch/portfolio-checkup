@@ -92,10 +92,92 @@ function parseMfFolios(rawText) {
   return folios;
 }
 
+/**
+ * Extracts the "MUTUAL FUND UNITS HELD AS ON <date>" table, which contains
+ * per-scheme Cumulative Amount Invested, Valuation, and Unrealised Profit/
+ * Loss. We use this purely to total up invested-vs-current and the overall
+ * gain/loss — this is arithmetic on numbers CDSL already printed per
+ * scheme, not our own valuation or recommendation.
+ */
+function parseGainLoss(rawText) {
+  const sectionMatch = rawText.match(/MUTUAL FUND UNITS HELD AS ON[\s\S]*?(?=Load Structures|NOTES TO CAS|$)/);
+  if (!sectionMatch) return null;
+  const section = sectionMatch[0];
+
+  const grandTotalMatch = section.match(/Grand Total\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)/);
+  if (grandTotalMatch) {
+    const invested = parseFloat(grandTotalMatch[1].replace(/,/g, ''));
+    const valuation = parseFloat(grandTotalMatch[2].replace(/,/g, ''));
+    const gain = Math.round((valuation - invested) * 100) / 100;
+    const gainPercent = invested > 0 ? Math.round((gain / invested) * 10000) / 100 : null;
+    return { totalInvested: invested, totalValuation: valuation, totalGain: gain, totalGainPercent: gainPercent };
+  }
+  return null;
+}
+
+/**
+ * Extracts per-scheme rows (name + valuation) from the gain/loss table,
+ * anchored on the ISIN (a fixed, reliable token) rather than the scheme
+ * name text, which wraps unpredictably before AND after the data row.
+ * The name captured is best-effort (text preceding the ISIN on the same
+ * logical row) — good enough to identify the scheme for category
+ * classification and charting, even if not word-perfect.
+ */
+function parseSchemeValues(rawText) {
+  const sectionMatch = rawText.match(/MUTUAL FUND UNITS HELD AS ON[\s\S]*?(?=Load Structures|NOTES TO CAS|$)/);
+  if (!sectionMatch) return [];
+  const lines = sectionMatch[0].split('\n').filter(l =>
+    !l.match(/Cumulative|Unrealised|Scheme Name|Folio No|MUTUAL FUND UNITS HELD/)
+  );
+  const isinRegex = /\bIN[A-Z0-9]{10}\b/;
+  const schemes = [];
+  let precedingText = [];
+
+  for (const line of lines) {
+    const isinMatch = line.match(isinRegex);
+    if (isinMatch) {
+      const isinIndex = line.indexOf(isinMatch[0]);
+      const beforeIsin = line.slice(0, isinIndex).trim();
+      const afterIsin = line.slice(isinIndex + isinMatch[0].length);
+
+      // Numbers after the ISIN: unit balance, NAV, invested, valuation, gain, gain%
+      // (6 total) — valuation is 3rd-from-end.
+      const numbers = afterIsin.match(/[\d,]+\.\d+/g) || [];
+      if (numbers.length >= 3) {
+        const valuation = parseFloat(numbers[numbers.length - 3].replace(/,/g, ''));
+        const fullName = [...precedingText, beforeIsin].join(' ')
+          .replace(/^[A-Z0-9]{2,6}\s*-\s*/, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (fullName && !isNaN(valuation)) {
+          schemes.push({ scheme: fullName, value: valuation });
+        }
+      }
+      precedingText = [];
+    } else if (line.trim() && !line.includes('Grand Total')) {
+      precedingText.push(line.trim());
+      if (precedingText.length > 2) precedingText.shift();
+    }
+  }
+
+  return schemes;
+}
+
+const { buildCategoryBreakdown } = require('./category-classifier');
+const { buildIssueChecks } = require('./issue-checks');
+const { buildPersonalization } = require('./personalization');
+const { buildFootprint } = require('./sip-footprint');
+
 function buildCdslSummary(rawText) {
   const allocation = parseAssetAllocation(rawText);
   const totalValue = parseTotalPortfolioValue(rawText);
   const folios = parseMfFolios(rawText);
+  const gainLoss = parseGainLoss(rawText);
+  const schemeValues = parseSchemeValues(rawText);
+  const categoryBreakdown = buildCategoryBreakdown(schemeValues.length > 0 ? schemeValues : folios.map(f => ({ scheme: f.scheme, value: 0 })));
+  const issues = buildIssueChecks(rawText, schemeValues.length > 0 ? schemeValues : folios, categoryBreakdown.fineSchemes);
+  const personalization = buildPersonalization(rawText, totalValue);
+  const footprint = buildFootprint(rawText);
 
   const amcSet = new Set(folios.map(f => f.amc));
 
@@ -116,8 +198,13 @@ function buildCdslSummary(rawText) {
     amcCount: amcSet.size,
     allocation,
     duplicateSchemes,
+    gainLoss,
+    categoryBreakdown,
+    issues,
+    personalization,
+    footprint,
     folios
   };
 }
 
-module.exports = { isCdslCas, parseAssetAllocation, parseTotalPortfolioValue, parseMfFolios, buildCdslSummary };
+module.exports = { isCdslCas, parseAssetAllocation, parseTotalPortfolioValue, parseMfFolios, parseGainLoss, parseSchemeValues, buildCdslSummary };
