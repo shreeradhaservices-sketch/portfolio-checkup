@@ -85,13 +85,56 @@ function parseIsinOccurrences(rawText) {
     .filter(([, count]) => count > 1)
     .map(([isin, count]) => ({ isin, count, scheme: nameForIsin[isin] || ('Scheme with ISIN ' + isin) }));
 
-  return { totalSchemeRows: matches.length, duplicates };
+  const allNames = Object.keys(counts).map(isin => nameForIsin[isin]).filter(Boolean);
+
+  return { totalSchemeRows: matches.length, duplicates, allNames };
+}
+
+const { classifyFine, classifyBroad } = require('./category-classifier');
+const { buildIssueChecks, checkPlanTypeMix, checkCategoryConcentration } = require('./issue-checks');
+const { buildPersonalization } = require('./personalization');
+const { findSipProgress } = require('./sip-footprint');
+
+/**
+ * Category breakdown BY SCHEME COUNT (not rupee value) — we don't have
+ * reliable per-scheme values in this format, only AMC-level totals, so
+ * we count how many schemes fall in each category instead.
+ */
+function buildCategoryByCount(duplicates, allSchemeNames) {
+  const fineCounts = {};
+  const fineSchemes = {};
+  for (const name of allSchemeNames) {
+    const fine = classifyFine(name);
+    fineCounts[fine] = (fineCounts[fine] || 0) + 1;
+    if (!fineSchemes[fine]) fineSchemes[fine] = [];
+    fineSchemes[fine].push(name);
+  }
+  const fine = Object.entries(fineCounts)
+    .map(([category, count]) => ({ category, count }))
+    .sort((a, b) => b.count - a.count);
+  return { fine, fineSchemes };
 }
 
 function buildCamsClassicSummary(rawText) {
   const amcTotals = parseAmcTotals(rawText);
   const grandTotal = parseGrandTotal(rawText);
-  const { totalSchemeRows, duplicates } = parseIsinOccurrences(rawText);
+  const { totalSchemeRows, duplicates, allNames } = parseIsinOccurrences(rawText);
+  const { fine, fineSchemes } = buildCategoryByCount(duplicates, allNames);
+  const planMix = checkPlanTypeMix(allNames.map(n => ({ scheme: n })));
+  const concentration = checkCategoryConcentration(fineSchemes);
+  const personalization = buildPersonalization(rawText, grandTotal);
+  const sipProgress = findSipProgress(rawText);
+
+  const issues = [];
+  if (planMix.direct > 0 && planMix.regular > 0) {
+    issues.push({ type: 'plan-mix', text: 'You hold ' + planMix.direct + ' Direct Plan and ' + planMix.regular + ' Regular Plan scheme(s).' });
+  }
+  for (const c of concentration) {
+    issues.push({ type: 'concentration', text: 'You hold ' + c.count + ' schemes in the ' + c.category + ' category: ' + c.schemes.join(', ') + '.' });
+  }
+  for (const d of duplicates) {
+    issues.push({ type: 'duplicate', text: 'You hold the same scheme across ' + d.count + ' separate rows: ' + d.scheme + '.' });
+  }
 
   return {
     format: 'cams-classic',
@@ -103,7 +146,12 @@ function buildCamsClassicSummary(rawText) {
       value: a.value,
       percent: grandTotal ? Math.round((a.value / grandTotal) * 1000) / 10 : null
     })),
-    duplicateSchemes: duplicates.map(d => ({ scheme: d.scheme, count: d.count }))
+    categoryBreakdown: { fine, fineSchemes },
+    duplicateSchemes: duplicates.map(d => ({ scheme: d.scheme, count: d.count })),
+    issues,
+    personalization,
+    sipProgress,
+    footprint: { amcs: amcTotals.length }
   };
 }
 
