@@ -6,19 +6,37 @@
 <title>Portfolio Checkup - SR Wealth</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
-  body { font-family: Arial, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 20px; color: #222; }
-  h1 { font-size: 22px; }
+  body { font-family: Arial, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 20px; color: #222; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  h2 { font-size: 17px; margin: 0 0 12px; }
   .box { background: #f7f7f7; border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin: 16px 0; }
   input[type=password], input[type=file] { width: 100%; padding: 10px; margin: 8px 0 16px; box-sizing: border-box; }
   button { background: #16324f; color: #fff; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-size: 15px; }
   button:disabled { background: #999; }
-  .disclaimer { font-size: 12px; color: #666; margin-top: 8px; }
+  .disclaimer { font-size: 12px; color: #666; margin-top: 8px; line-height: 1.6; }
   .error { color: #b00020; font-size: 14px; margin-top: 8px; }
-  .stat { display: inline-block; width: 45%; margin: 8px 1%; }
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 12px 0; }
+  .stat { background: #fff; border: 1px solid #e5e5e5; border-radius: 6px; padding: 10px 14px; }
   .stat b { font-size: 20px; display: block; }
+  .stat span { font-size: 12px; color: #666; }
   #results { display: none; }
-  .note { background: #fff8e1; border-left: 4px solid #f5b300; padding: 10px 14px; margin: 10px 0; font-size: 14px; }
-  a.cta { display: inline-block; margin-top: 16px; background: #128c7e; color: #fff; padding: 12px 20px; border-radius: 6px; text-decoration: none; }
+  .greeting { font-size: 18px; margin-bottom: 4px; }
+  .milestone-banner { background: #eaf6f0; border-left: 4px solid #128c7e; padding: 10px 14px; margin: 12px 0; font-size: 14px; }
+  .journey-banner { background: #eef3fa; border-left: 4px solid #16324f; padding: 10px 14px; margin: 12px 0; font-size: 14px; }
+  .note { background: #fff8e1; border-left: 4px solid #f5b300; padding: 10px 14px; margin: 8px 0; font-size: 14px; }
+  .gain-positive { color: #128c7e; }
+  .gain-negative { color: #b00020; }
+  .sip-bar-bg { background: #e5e5e5; border-radius: 6px; height: 18px; overflow: hidden; margin: 8px 0; }
+  .sip-bar-fill { background: #128c7e; height: 100%; }
+  a.cta { display: inline-block; margin-top: 10px; margin-right: 10px; background: #128c7e; color: #fff; padding: 12px 20px; border-radius: 6px; text-decoration: none; }
+  .footprint-item { display: inline-block; margin-right: 24px; font-size: 14px; }
+  .footer-box { font-size: 13px; color: #444; line-height: 1.8; }
+  .footer-box .author-name { font-weight: bold; font-size: 14px; color: #16324f; }
+  @media print {
+    button, #uploadForm, .no-print { display: none !important; }
+    body { max-width: 100%; }
+    .box { border: none; break-inside: avoid; }
+  }
 </style>
 </head>
 <body>
@@ -26,40 +44,121 @@
 <h1>Portfolio Checkup</h1>
 <p>Upload your Consolidated Account Statement (CAS) and instantly see your asset allocation and fund spread. Nothing is stored — your file is processed and deleted immediately.</p>
 
-<div class="box">
+<div class="box no-print">
   <form id="uploadForm">
     <label>Your CAS statement (PDF)</label>
     <input type="file" id="casFile" accept="application/pdf" required>
     <label>Password to unlock (usually your PAN)</label>
     <input type="password" id="password" placeholder="ABCDE1234F" required>
+    <p style="font-size:13px;color:#666;margin:-8px 0 12px;">Tip: for the richest results (like SIP progress and gain/loss), download a CAS covering the last 6-12 months or "since inception," rather than just the last month.</p>
     <button type="submit" id="submitBtn">Analyze my portfolio</button>
-    <div class="disclaimer">This tool provides a factual summary of your uploaded statement for your own reference only. It is not investment advice or a recommendation to buy, hold, or sell any scheme.</div>
+    <div class="disclaimer">This tool provides a factual summary of your uploaded statement for your own reference only. It is not investment advice or a recommendation to buy, hold, or sell any scheme. Shree Radha Financial Services (SR Wealth) is an AMFI Registered Mutual Fund &amp; SIF Distributor (ARN-268390) and APMI Registered PMS Distributor (APRN-05763), not an investment adviser.</div>
     <div class="error" id="errorMsg"></div>
   </form>
 </div>
 
-<div id="results" class="box">
-  <h2>Your portfolio, at a glance</h2>
-  <div class="stat">Total value<b id="totalValue">-</b></div>
-  <div class="stat">Schemes held<b id="schemeCount">-</b></div>
-  <div class="stat">Fund houses<b id="amcCount">-</b></div>
-  <canvas id="chart" height="200"></canvas>
-  <div id="concentrationNotes"></div>
-  <a class="cta" id="waLink" href="#" target="_blank">Discuss this with our team on WhatsApp</a>
+<div id="results">
+
+  <div class="box" id="greetingBox" style="display:none;">
+    <div class="greeting" id="greetingText"></div>
+  </div>
+
+  <div class="box">
+    <h2>Your portfolio, at a glance</h2>
+    <div class="stat-grid">
+      <div class="stat"><span>Total value</span><b id="totalValue">-</b></div>
+      <div class="stat"><span>Schemes held</span><b id="schemeCount">-</b></div>
+      <div class="stat"><span>Fund houses</span><b id="amcCount">-</b></div>
+      <div class="stat" id="brokerStat" style="display:none;"><span>Brokers/DPs</span><b id="brokerCount">-</b></div>
+    </div>
+    <div id="milestoneBanner" class="milestone-banner" style="display:none;"></div>
+    <div id="journeyBanner" class="journey-banner" style="display:none;"></div>
+    <div id="sipSection" style="display:none;margin-top:12px;">
+      <strong>SIP progress</strong>
+      <div id="sipText" style="font-size:14px;margin:4px 0;"></div>
+      <div class="sip-bar-bg"><div class="sip-bar-fill" id="sipBarFill" style="width:0%;"></div></div>
+    </div>
+  </div>
+
+  <div class="box" id="gainLossBox" style="display:none;">
+    <h2>Gains at a glance</h2>
+    <div class="stat-grid">
+      <div class="stat"><span>Total invested</span><b id="totalInvested">-</b></div>
+      <div class="stat"><span>Current value</span><b id="totalValuation">-</b></div>
+      <div class="stat"><span>Unrealised gain/loss</span><b id="totalGain">-</b></div>
+    </div>
+    <canvas id="investedVsCurrentChart" height="120"></canvas>
+  </div>
+
+  <div class="box">
+    <h2>Asset allocation (as reported)</h2>
+    <canvas id="assetClassChart" height="220"></canvas>
+  </div>
+
+  <div class="box" id="broadCategoryBox" style="display:none;">
+    <h2>Broad category breakdown</h2>
+    <canvas id="broadCategoryChart" height="220"></canvas>
+  </div>
+
+  <div class="box" id="fineCategoryBox" style="display:none;">
+    <h2>Mutual fund category breakdown</h2>
+    <canvas id="fineCategoryChart" height="220"></canvas>
+  </div>
+
+  <div class="box" id="footprintBox" style="display:none;">
+    <h2>Your investment footprint</h2>
+    <div id="footprintText"></div>
+  </div>
+
+  <div class="box" id="issuesBox" style="display:none;">
+    <h2>Things worth knowing</h2>
+    <div id="issuesList"></div>
+  </div>
+
+  <div class="box">
+    <div class="disclaimer">This report provides a factual summary of your uploaded statement for your own reference only. It is not investment advice or a recommendation to buy, hold, or sell any scheme. Shree Radha Financial Services (SR Wealth) is an AMFI Registered Mutual Fund &amp; SIF Distributor (ARN-268390) and APMI Registered PMS Distributor (APRN-05763), not an investment adviser. Figures are drawn directly from your uploaded statement.</div>
+    <div style="margin-top:14px;">
+      <button class="no-print" onclick="window.print()">Download / Print PDF</button>
+      <a class="cta" id="waLink" href="#" target="_blank">Discuss this with our team on WhatsApp</a>
+    </div>
+  </div>
+
+  <div class="box footer-box">
+    <div>📞 Call / WhatsApp: +91 98791 13255</div>
+    <div>📧 Email: shreeradha.services@gmail.com</div>
+    <div>🌐 Visit: www.srwealth.co.in</div>
+    <div>📍 Shop 33, Mira Nagar 2, Dindoli Road, Surat 394210</div>
+    <hr style="border:none;border-top:1px solid #ddd;margin:14px 0;">
+    <div class="author-name">Paresh Chaudhary</div>
+    <div>Founder, Shree Radha Financial Services (SR Wealth)</div>
+    <div>AMFI Registered Mutual Fund &amp; SIF Distributor — ARN: 268390</div>
+    <div>APMI Registered PMS Distributor — APRN: 05763</div>
+    <div>IRDAI Licensed Insurance Distributor</div>
+    <div>BE Mechanical, SVNIT Surat | Ex-L&amp;T (15+ Years)</div>
+  </div>
+
 </div>
 
 <script>
 const form = document.getElementById('uploadForm');
 const errorMsg = document.getElementById('errorMsg');
 const submitBtn = document.getElementById('submitBtn');
-let chartInstance = null;
+let charts = {};
+
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+function fmtInr(value) {
+  if (value === null || value === undefined) return 'Not found';
+  return '₹' + Math.round(value).toLocaleString('en-IN');
+}
 
 form.addEventListener('submit', async function(e) {
   e.preventDefault();
   errorMsg.textContent = '';
   const file = document.getElementById('casFile').files[0];
   const password = document.getElementById('password').value.trim();
-
   if (!file) { errorMsg.textContent = 'Please choose a file.'; return; }
   if (!password) { errorMsg.textContent = 'Please enter the password.'; return; }
 
@@ -73,15 +172,11 @@ form.addEventListener('submit', async function(e) {
   try {
     const res = await fetch('/api/analyze', { method: 'POST', body: formData });
     const data = await res.json();
-
     if (!res.ok) {
       errorMsg.textContent = data.error || 'Something went wrong.';
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Analyze my portfolio';
-      return;
+    } else {
+      renderResults(data);
     }
-
-    renderResults(data);
   } catch (err) {
     errorMsg.textContent = 'Could not reach the server. Please try again.';
   }
@@ -90,40 +185,122 @@ form.addEventListener('submit', async function(e) {
 });
 
 function renderResults(data) {
-  document.getElementById('totalValue').textContent = data.totalValue ? '₹' + data.totalValue.toLocaleString('en-IN') : 'Not found';
-  document.getElementById('schemeCount').textContent = data.schemeCount;
-  document.getElementById('amcCount').textContent = data.amcCount;
+  if (data.personalization && data.personalization.investorName) {
+    document.getElementById('greetingText').textContent = 'Here is ' + data.personalization.investorName.split(' ')[0] + '\u2019s Portfolio Checkup';
+    document.getElementById('greetingBox').style.display = 'block';
+  }
 
-  const ctx = document.getElementById('chart').getContext('2d');
-  if (chartInstance) chartInstance.destroy();
-  chartInstance = new Chart(ctx, {
-    type: 'doughnut',
-    data: {
-      labels: data.allocation.map(a => a.category[0].toUpperCase() + a.category.slice(1) + ' (' + a.percent + '%)'),
-      datasets: [{ data: data.allocation.map(a => a.value), backgroundColor: ['#16324f','#128c7e','#f5b300','#b00020','#7b5ea7','#888'] }]
-    }
-  });
+  document.getElementById('totalValue').textContent = fmtInr(data.totalValue);
+  document.getElementById('schemeCount').textContent = data.schemeCount ?? '-';
+  document.getElementById('amcCount').textContent = data.amcCount ?? '-';
+  if (data.footprint && data.footprint.brokers > 0) {
+    document.getElementById('brokerStat').style.display = 'block';
+    document.getElementById('brokerCount').textContent = data.footprint.brokers;
+  }
 
-  const notesDiv = document.getElementById('concentrationNotes');
-  notesDiv.innerHTML = '';
+  if (data.personalization && data.personalization.milestone) {
+    document.getElementById('milestoneBanner').style.display = 'block';
+    document.getElementById('milestoneBanner').textContent = 'Your portfolio has crossed ' + data.personalization.milestone.formatted + '.';
+  }
 
-  // CAMS-style: same-category concentration notes
-  (data.concentrationNotes || []).forEach(n => {
-    const div = document.createElement('div');
-    div.className = 'note';
-    div.textContent = 'You hold ' + n.count + ' schemes in the ' + n.category + ' category: ' + n.schemes.join(', ') + '.';
-    notesDiv.appendChild(div);
-  });
+  if (data.personalization && data.personalization.journey) {
+    const j = data.personalization.journey;
+    document.getElementById('journeyBanner').style.display = 'block';
+    let text = 'You have been investing since ' + j.startDate + ' - that is ';
+    text += j.years > 0 ? j.years + ' year' + (j.years > 1 ? 's' : '') : '';
+    if (j.months > 0) text += (j.years > 0 ? ' and ' : '') + j.months + ' month' + (j.months > 1 ? 's' : '');
+    document.getElementById('journeyBanner').textContent = text + ' of building this portfolio.';
+  }
 
-  // CDSL-style: exact duplicate scheme held across separate folios
-  (data.duplicateSchemes || []).forEach(d => {
-    const div = document.createElement('div');
-    div.className = 'note';
-    div.textContent = 'You hold the same scheme across ' + d.count + ' separate folios: ' + d.scheme + '.';
-    notesDiv.appendChild(div);
-  });
+  if (data.sipProgress && data.sipProgress.length > 0) {
+    const sip = data.sipProgress[0];
+    const pct = Math.min(100, Math.round((sip.completed / sip.total) * 100));
+    document.getElementById('sipSection').style.display = 'block';
+    document.getElementById('sipText').textContent = 'Instalment ' + sip.completed + ' of ' + sip.total + ' (' + pct + '% complete)';
+    document.getElementById('sipBarFill').style.width = pct + '%';
+  }
 
-  const waText = encodeURIComponent('Hi, I just ran a Portfolio Checkup on your site. I hold ' + data.schemeCount + ' schemes' + (data.totalValue ? ' worth approx ₹' + data.totalValue.toLocaleString('en-IN') : '') + '. I would like to review this with someone.');
+  if (data.gainLoss) {
+    document.getElementById('gainLossBox').style.display = 'block';
+    document.getElementById('totalInvested').textContent = fmtInr(data.gainLoss.totalInvested);
+    document.getElementById('totalValuation').textContent = fmtInr(data.gainLoss.totalValuation);
+    const gainEl = document.getElementById('totalGain');
+    gainEl.textContent = fmtInr(data.gainLoss.totalGain) + ' (' + data.gainLoss.totalGainPercent + '%)';
+    gainEl.className = data.gainLoss.totalGain >= 0 ? 'gain-positive' : 'gain-negative';
+
+    destroyChart('investedVsCurrent');
+    charts.investedVsCurrent = new Chart(document.getElementById('investedVsCurrentChart').getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: ['Total Invested', 'Current Value'],
+        datasets: [{ data: [data.gainLoss.totalInvested, data.gainLoss.totalValuation], backgroundColor: ['#888', '#128c7e'] }]
+      },
+      options: { plugins: { legend: { display: false } }, indexAxis: 'y' }
+    });
+  }
+
+  destroyChart('assetClass');
+  if (data.allocation && data.allocation.length > 0) {
+    charts.assetClass = new Chart(document.getElementById('assetClassChart').getContext('2d'), {
+      type: 'doughnut',
+      data: {
+        labels: data.allocation.map(a => a.category + (a.percent != null ? ' (' + a.percent + '%)' : '')),
+        datasets: [{ data: data.allocation.map(a => a.value), backgroundColor: ['#16324f','#128c7e','#f5b300','#b00020','#7b5ea7','#888','#e08e45','#4a90d9'] }]
+      },
+      options: { plugins: { legend: { position: 'bottom' } } }
+    });
+  }
+
+  if (data.categoryBreakdown && data.categoryBreakdown.broad && data.categoryBreakdown.broad.length > 0) {
+    document.getElementById('broadCategoryBox').style.display = 'block';
+    destroyChart('broadCategory');
+    charts.broadCategory = new Chart(document.getElementById('broadCategoryChart').getContext('2d'), {
+      type: 'doughnut',
+      data: {
+        labels: data.categoryBreakdown.broad.map(a => a.category + ' (' + a.percent + '%)'),
+        datasets: [{ data: data.categoryBreakdown.broad.map(a => a.value), backgroundColor: ['#16324f','#128c7e','#f5b300','#b00020','#7b5ea7'] }]
+      },
+      options: { plugins: { legend: { position: 'bottom' } } }
+    });
+  }
+
+  if (data.categoryBreakdown && data.categoryBreakdown.fine && data.categoryBreakdown.fine.length > 0) {
+    document.getElementById('fineCategoryBox').style.display = 'block';
+    const isCount = data.categoryBreakdown.fine[0].count !== undefined;
+    destroyChart('fineCategory');
+    charts.fineCategory = new Chart(document.getElementById('fineCategoryChart').getContext('2d'), {
+      type: 'doughnut',
+      data: {
+        labels: data.categoryBreakdown.fine.map(a => a.category + (isCount ? ' (' + a.count + ')' : ' (' + a.percent + '%)')),
+        datasets: [{ data: data.categoryBreakdown.fine.map(a => isCount ? a.count : a.value), backgroundColor: ['#16324f','#128c7e','#f5b300','#b00020','#7b5ea7','#888','#e08e45','#4a90d9'] }]
+      },
+      options: { plugins: { legend: { position: 'bottom' } } }
+    });
+  }
+
+  if (data.footprint && (data.footprint.brokers || data.footprint.amcs || data.footprint.rtas)) {
+    document.getElementById('footprintBox').style.display = 'block';
+    let parts = [];
+    if (data.footprint.brokers) parts.push('<span class="footprint-item"><b>' + data.footprint.brokers + '</b> broker(s)/DP(s)</span>');
+    if (data.footprint.amcs) parts.push('<span class="footprint-item"><b>' + data.footprint.amcs + '</b> fund house(s)</span>');
+    if (data.footprint.rtas) parts.push('<span class="footprint-item"><b>' + data.footprint.rtas + '</b> registrar(s)</span>');
+    document.getElementById('footprintText').innerHTML = parts.join('');
+  }
+
+  const issuesList = document.getElementById('issuesList');
+  issuesList.innerHTML = '';
+  const allIssues = data.issues || [];
+  if (allIssues.length > 0) {
+    document.getElementById('issuesBox').style.display = 'block';
+    allIssues.forEach(issue => {
+      const div = document.createElement('div');
+      div.className = 'note';
+      div.textContent = issue.text;
+      issuesList.appendChild(div);
+    });
+  }
+
+  const waText = encodeURIComponent('Hi, I just ran a Portfolio Checkup on your site. I hold ' + (data.schemeCount || '') + ' schemes' + (data.totalValue ? ' worth approx ' + fmtInr(data.totalValue) : '') + '. I would like to review this with someone. (This is a factual summary, not advice.)');
   document.getElementById('waLink').href = 'https://wa.me/919879113255?text=' + waText;
 
   document.getElementById('results').style.display = 'block';
